@@ -19,6 +19,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from googleapiclient.http import MediaIoBaseUpload
 import io
+from dotenv import load_dotenv
 
 # Parse command line arguments at the global scope
 parser = argparse.ArgumentParser(description='LinkedIn Content Automation')
@@ -28,14 +29,16 @@ parser.add_argument('--skip-review', action='store_true', help='Skip human revie
 args = parser.parse_args()
 SKIP_REVIEW = args.skip_review
 
+# Load environment variables from .env file
+load_dotenv()
 # Configuration - Replace with your actual API keys and credentials
 CONFIG = {
     "apify_api_key": os.environ.get("APIFY_API_KEY"),
     "openrouter_api_key": os.environ.get("OPENROUTER_API_KEY"),
     "google_drive_folder_id": os.environ.get("GOOGLE_DRIVE_FOLDER_ID"),
-    "youtube_search_query": "your_search_query_here",
+    "youtube_search_query": os.environ.get("YOUTUBE_SEARCH_QUERY"),
     "twitter_username": os.environ.get("TWITTER_USERNAME"),  # Replace with actual username
-    "max_results": 10
+    "max_results": int(os.environ.get("MAX_RESULTS"))
 }
 
 # Google Drive API scopes
