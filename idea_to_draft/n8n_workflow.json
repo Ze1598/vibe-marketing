@@ -1,0 +1,278 @@
+{
+  "name": "idea to post generation",
+  "nodes": [
+    {
+      "parameters": {
+        "model": "perplexity/sonar-deep-research",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        440,
+        360
+      ],
+      "id": "52985631-1467-4650-93e2-861dbbfeb3c5",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "aveZ0VojuRpsWQPc",
+          "name": "OpenRouter account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Write an essay about {{ $json.chatInput }}",
+        "options": {
+          "systemMessage": "=Write an essay about {{ $json.chatInput }}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        440,
+        140
+      ],
+      "id": "1998d3a5-ab5a-4fb6-afaa-bf271fa8471d",
+      "name": "Perplexity Research"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Write an editorial revision of the text below. I will review your feedback and edit the text to make it ready to post on Substack.\n\n{{ $json.output }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        940,
+        140
+      ],
+      "id": "8f1ceacf-acc2-4c84-85c5-defb9a515225",
+      "name": "Claude Revision"
+    },
+    {
+      "parameters": {
+        "model": "anthropic/claude-sonnet-4",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        940,
+        360
+      ],
+      "id": "2adc3b67-4b81-4cd4-ac06-f98c703d0bc1",
+      "name": "OpenRouter Chat Model2",
+      "credentials": {
+        "openRouterApi": {
+          "id": "aveZ0VojuRpsWQPc",
+          "name": "OpenRouter account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "google/gemini-2.5-pro-preview",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        1500,
+        340
+      ],
+      "id": "239d5a5a-f0ab-40e0-8e9e-99877aa7eb9e",
+      "name": "OpenRouter Chat Model3",
+      "credentials": {
+        "openRouterApi": {
+          "id": "aveZ0VojuRpsWQPc",
+          "name": "OpenRouter account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=I have attached both my original essay and the editorial review by a colleague. Implement the editorial review so the text is ready to publish on Substack.\n\nP.S. I am happy for the output to be multiple posts as suggested by the editor if you agree with the need for it.\n\n\n### Original Essay\n\n{{ $('Perplexity Research').item.json.output }}\n\n\n### Editorial Review\n\n{{ $('Claude Revision').item.json.output }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        1500,
+        140
+      ],
+      "id": "f046996b-0183-49b5-8b34-80fbd409c626",
+      "name": "Gemini Drafting"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        40,
+        140
+      ],
+      "id": "1072246e-3812-41ea-a892-d3917e8d6d3d",
+      "name": "Send idea in chat",
+      "webhookId": "bd5cbd88-9403-46ca-88b6-56257a3c6cee"
+    },
+    {
+      "parameters": {
+        "folderId": "your_google_drive_folder_id",
+        "title": "={{ (() => {\n const now = new Date();\n const year = now.getFullYear();\n const month = String(now.getMonth() + 1).padStart(2, '0');\n const day = String(now.getDate()).padStart(2, '0');\n const hours = String(now.getHours()).padStart(2, '0');\n const minutes = String(now.getMinutes()).padStart(2, '0');\n const seconds = String(now.getSeconds()).padStart(2, '0');\n return `Draft ${year}-${month}-${day} ${hours}-${minutes}-${seconds}`;\n})() }}"
+      },
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [
+        1880,
+        140
+      ],
+      "id": "0897c83c-a04e-49e6-bf83-7d53cdef2c89",
+      "name": "Create New Doc Empty",
+      "executeOnce": true,
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "b4lxFDOaE1RWGBTU",
+          "name": "Google Docs account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentURL": "={{ $json.id }}",
+        "actionsUi": {
+          "actionFields": [
+            {
+              "action": "insert",
+              "text": "={{ $('Gemini Drafting').item.json.output }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [
+        2120,
+        140
+      ],
+      "id": "f94e5eb3-2d4b-49e3-b99f-54962677c58c",
+      "name": "Save Draft in Doc",
+      "executeOnce": true,
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "b4lxFDOaE1RWGBTU",
+          "name": "Google Docs account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Perplexity Research",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Perplexity Research": {
+      "main": [
+        [
+          {
+            "node": "Claude Revision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Revision": {
+      "main": [
+        [
+          {
+            "node": "Gemini Drafting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Claude Revision",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model3": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Gemini Drafting",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Drafting": {
+      "main": [
+        [
+          {
+            "node": "Create New Doc Empty",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send idea in chat": {
+      "main": [
+        [
+          {
+            "node": "Perplexity Research",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create New Doc Empty": {
+      "main": [
+        [
+          {
+            "node": "Save Draft in Doc",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "17c49a25-db6a-4a93-851d-5f990a5ceba7",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "d060e772648f5f2b5ac53da6060c68b0a3065c77c4640176012c001d71914a2a"
+  },
+  "id": "fVUTTs9pGq3PAO4N",
+  "tags": []
+}
