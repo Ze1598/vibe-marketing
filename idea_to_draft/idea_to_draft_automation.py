@@ -208,15 +208,17 @@ class GoogleDocsManager:
         
     def _get_credentials(self) -> Optional[Credentials]:
         """Get or refresh Google API credentials"""
-        creds = None
-        token_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'token.json')
-        credentials_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'credentials.json')
+        # Allow insecure local host for development
+        os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
         
-        # Check if credentials.json exists, if not, create it with minimal required fields
-        if not os.path.exists(credentials_path):
-            print("credentials.json not found. Creating a minimal version...")
+        # Define paths
+        client_secrets_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'client_secrets.json')
+        token_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'token.json')
+        
+        # Check if client_secrets.json exists, if not, create it
+        if not os.path.exists(client_secrets_file):
+            print("client_secrets.json not found. Creating it from environment variables...")
             try:
-                # Create a minimal OAuth client credentials file
                 client_config = {
                     "installed": {
                         "client_id": os.environ.get("GOOGLE_CLIENT_ID", ""),
@@ -235,52 +237,49 @@ class GoogleDocsManager:
                     print("Skipping Google Docs integration.")
                     return None
                 
-                with open(credentials_path, 'w') as f:
+                with open(client_secrets_file, 'w') as f:
                     json.dump(client_config, f)
-                print(f"Created credentials.json at {credentials_path}")
+                print(f"Created client_secrets.json at {client_secrets_file}")
             except Exception as e:
-                print(f"Error creating credentials.json: {e}")
+                print(f"Error creating client_secrets.json: {e}")
                 print("Skipping Google Docs integration.")
                 return None
         
-        # Check if token.json exists with valid credentials
+        # Check if token.json exists
+        creds = None
         if os.path.exists(token_path):
             try:
                 with open(token_path, 'r') as token_file:
                     creds = Credentials.from_authorized_user_info(json.load(token_file), SCOPES)
             except Exception as e:
                 print(f"Error loading token.json: {e}")
-                # If token is corrupted, remove it so we can create a new one
-                os.remove(token_path)
-                creds = None
-            
-        # If no valid credentials, let user log in
+                # Continue with authentication flow
+        
+        # If no valid credentials or they're expired, run the auth flow
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
                 try:
                     creds.refresh(Request())
                 except Exception as e:
                     print(f"Error refreshing credentials: {e}")
-                    print("You'll need to re-authenticate.")
-                    creds = None
-            
-            if not creds:
+                    # Continue with authentication flow
+            else:
                 try:
-                    flow = InstalledAppFlow.from_client_secrets_file(credentials_path, SCOPES)
-                    creds = flow.run_local_server(port=0)
+                    print("\nAuthenticating Google account...")
+                    print("A browser window will open for authentication...")
+                    
+                    flow = InstalledAppFlow.from_client_secrets_file(client_secrets_file, SCOPES)
+                    creds = flow.run_local_server(port=8080)
+                    
+                    # Save the credentials for the next run
+                    with open(token_path, 'w') as token:
+                        token.write(creds.to_json())
+                    print(f"Authentication successful. Token saved to {token_path}")
                 except Exception as e:
-                    print(f"Error during authentication flow: {e}")
+                    print(f"Authentication failed: {e}")
                     print("Skipping Google Docs integration.")
                     return None
-                
-            # Save credentials for next run
-            try:
-                with open(token_path, 'w') as token:
-                    token.write(creds.to_json())
-                print(f"Saved authentication token to {token_path}")
-            except Exception as e:
-                print(f"Error saving token: {e}")
-                
+        
         return creds
     
     def create_empty_doc(self, title: str, folder_id: str) -> Dict[str, Any]:
@@ -364,7 +363,6 @@ class WorkflowOrchestrator:
         self.openrouter_client = OpenRouterClient(CONFIG["openrouter_api_key"])
         self.content_generator = ContentGenerator(self.openrouter_client)
         self.docs_manager = GoogleDocsManager()
-        self.human_review = HumanReview()
     
     def run_workflow(self, idea_text: str) -> None:
         """Run the complete workflow"""
@@ -413,10 +411,8 @@ class WorkflowOrchestrator:
             CONFIG["google_drive_folder_id"]
         )
         
-        if not doc_result["success"]:
-            print("Failed to create Google Doc. Saving content to local file instead.")
-            self._save_to_local_file(draft_result["final_draft"])
-            return
+        print("Saving content to local file.")
+        self._save_to_local_file(draft_result["final_draft"])
             
         # 6. Update Google Doc with content
         print("Saving draft to Google Doc...")
@@ -428,14 +424,11 @@ class WorkflowOrchestrator:
         if update_result["success"]:
             print(f"Workflow completed successfully!")
             print(f"Document created: https://docs.google.com/document/d/{doc_result['doc_id']}/edit")
-        else:
-            print("Workflow completed but failed to update Google Doc. Saving content to local file instead.")
-            self._save_to_local_file(draft_result["final_draft"])
     
     def _save_to_local_file(self, content: str) -> None:
         """Save content to a local file as fallback"""
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        filename = f"draft_{timestamp}.txt"
+        filename = f"draft_{timestamp}.md"
         filepath = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
         
         try:
@@ -444,10 +437,6 @@ class WorkflowOrchestrator:
             print(f"Content saved to local file: {filepath}")
         except Exception as e:
             print(f"Error saving to local file: {e}")
-            print("Printing content to console instead:")
-            print("\n" + "="*80)
-            print(content)
-            print("="*80)
 
 
 def main():
